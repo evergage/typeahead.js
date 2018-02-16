@@ -11,8 +11,8 @@ var Typeahead = (function() {
   // -----------
 
   function Typeahead(o, www) {
-    var onFocused, onBlurred, onEnterKeyed, onTabKeyed, onEscKeyed, onUpKeyed,
-        onDownKeyed, onLeftKeyed, onRightKeyed, onQueryChanged,
+    var onFocused, onMouseuped, onBlurred, onEnterKeyed, onTabKeyed, onEscKeyed, onUpKeyed,
+        onDownKeyed, onLeftKeyed, onRightKeyed, onLeftKeyedUp, onRightKeyedUp, onQueryChanged,
         onWhitespaceChanged;
 
     o = o || {};
@@ -58,6 +58,7 @@ var Typeahead = (function() {
 
     // composed event handlers for input
     onFocused = c(this, 'activate', 'open', '_onFocused');
+    onMouseuped = c(this, "isActive", "isOpen", "_onMouseuped");
     onBlurred = c(this, 'deactivate', '_onBlurred');
     onEnterKeyed = c(this, 'isActive', 'isOpen', '_onEnterKeyed');
     onTabKeyed = c(this, 'isActive', 'isOpen', '_onTabKeyed');
@@ -66,11 +67,15 @@ var Typeahead = (function() {
     onDownKeyed = c(this, 'isActive', 'open', '_onDownKeyed');
     onLeftKeyed = c(this, 'isActive', 'isOpen', '_onLeftKeyed');
     onRightKeyed = c(this, 'isActive', 'isOpen', '_onRightKeyed');
+    onLeftKeyedUp = c(this, "isActive", "isOpen", "_onLeftKeyedUp");
+    onRightKeyedUp = c(this, "isActive", "isOpen", "_onRightKeyedUp");
     onQueryChanged = c(this, '_openIfActive', '_onQueryChanged');
     onWhitespaceChanged = c(this, '_openIfActive', '_onWhitespaceChanged');
 
+    
     this.input.bind()
     .onSync('focused', onFocused, this)
+    .onSync("mouseuped", onMouseuped, this)
     .onSync('blurred', onBlurred, this)
     .onSync('enterKeyed', onEnterKeyed, this)
     .onSync('tabKeyed', onTabKeyed, this)
@@ -79,6 +84,8 @@ var Typeahead = (function() {
     .onSync('downKeyed', onDownKeyed, this)
     .onSync('leftKeyed', onLeftKeyed, this)
     .onSync('rightKeyed', onRightKeyed, this)
+    .onSync("leftKeyedUp", onLeftKeyedUp, this)
+    .onSync("rightKeyedUp", onRightKeyedUp, this)
     .onSync('queryChanged', onQueryChanged, this)
     .onSync('whitespaceChanged', onWhitespaceChanged, this)
     .onSync('langDirChanged', this._onLangDirChanged, this);
@@ -149,7 +156,11 @@ var Typeahead = (function() {
     },
 
     _onFocused: function onFocused() {
-      this._minLengthMet() && this.menu.update(this.input.getQuery());
+      this._minLengthMet() && this.menu.update(this.input.getQuery(), this.input.$input);
+  },
+
+    _onMouseuped: function onMouseuped() {
+        this._minLengthMet() && this.menu.update(this.input.getQuery(), this.input.$input);
     },
 
     _onBlurred: function onBlurred() {
@@ -202,8 +213,16 @@ var Typeahead = (function() {
       }
     },
 
+    _onLeftKeyedUp: function onLeftKeyedUp() {
+      this.menu.update(this.input.query, this.input.$input);
+    },
+
+    _onRightKeyedUp: function onRightKeyedUp() {
+        this.menu.update(this.input.query, this.input.$input);
+    },
+
     _onQueryChanged: function onQueryChanged(e, query) {
-      this._minLengthMet(query) ? this.menu.update(query) : this.menu.empty();
+        this._minLengthMet(query) ? this.menu.update(query, this.input.$input) : this.menu.empty();
     },
 
     _onWhitespaceChanged: function onWhitespaceChanged() {
@@ -351,9 +370,13 @@ var Typeahead = (function() {
         this.input.setQuery(data.val, true);
 
         this.eventBus.trigger('select', data.obj);
-        this.close();
-
-        // return true if selection succeeded
+        var terms = this.input.query.split(' : ');
+        var that = this;
+        if (terms.length === 2 && terms[1] === "") {
+            setTimeout(function() { that.menu.update(that.input.query, that.input.$input, true); });
+        } else {
+            this.close();
+        }
         return true;
       }
 
@@ -388,7 +411,7 @@ var Typeahead = (function() {
 
       // update will return true when it's a new query and new suggestions
       // need to be fetched – in this case we don't want to move the cursor
-      cancelMove = this._minLengthMet() && this.menu.update(query);
+      cancelMove = this._minLengthMet() && this.menu.update(query, this.input.$input);
 
       if (!cancelMove && !this.eventBus.before('cursorchange', payload)) {
         this.menu.setCursor($candidate);

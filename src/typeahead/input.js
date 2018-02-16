@@ -77,8 +77,14 @@ var Input = (function() {
     },
 
     _onFocus: function onFocus() {
+      var that = this;
       this.queryWhenFocused = this.query;
-      this.trigger('focused');
+      setTimeout(function() { that.trigger("focused"); });
+  },
+
+    _onMouseup: function onMouseup() {
+        var that = this;
+        setTimeout(function() { that.trigger("mouseuped"); });
     },
 
     _onKeydown: function onKeydown($e) {
@@ -89,6 +95,11 @@ var Input = (function() {
       if (keyName && this._shouldTrigger(keyName, $e)) {
         this.trigger(keyName + 'Keyed', $e);
       }
+    },
+
+    _onKeyup: function onKeydown($e) {
+      var keyName = specialKeyCodeMap[$e.which || $e.keyCode];
+      this.trigger(keyName + "KeyedUp", $e);
     },
 
     _onInput: function onInput() {
@@ -161,18 +172,22 @@ var Input = (function() {
     // ### public
 
     bind: function() {
-      var that = this, onBlur, onFocus, onKeydown, onInput;
+      var that = this, onBlur, onFocus, onMouseup, onKeydown, onKeyup, onInput;
 
       // bound functions
       onBlur = _.bind(this._onBlur, this);
       onFocus = _.bind(this._onFocus, this);
+      onMouseup = _.bind(this._onMouseup, this);
       onKeydown = _.bind(this._onKeydown, this);
+      onKeyup = _.bind(this._onKeyup, this);
       onInput = _.bind(this._onInput, this);
 
       this.$input
       .on('blur.tt', onBlur)
       .on('focus.tt', onFocus)
-      .on('keydown.tt', onKeydown);
+      .on("mouseup.tt", onMouseup)
+      .on('keydown.tt', onKeydown)
+      .on("keyup.tt", onKeyup);
 
       // ie8 don't support the input event
       // ie9 doesn't fire the input event when characters are removed
@@ -181,7 +196,7 @@ var Input = (function() {
       }
 
       else {
-        this.$input.on('keydown.tt keypress.tt cut.tt paste.tt', function($e) {
+        this.$input.on('keydown.tt keyup.tt keypress.tt cut.tt paste.tt', function($e) {
           // if a special key triggered this, ignore it
           if (specialKeyCodeMap[$e.which || $e.keyCode]) { return; }
 

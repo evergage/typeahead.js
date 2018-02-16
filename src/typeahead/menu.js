@@ -178,19 +178,37 @@ var Menu = (function() {
       return $selectable.length ? $selectable : null;
     },
 
-    update: function update(query) {
+    update: function update(query, $input, force) {
+      var currentTerm = getCurrentTerm($input);
+      this.currentTerm = this.currentTerm || {};
       var isValidUpdate = query !== this.query;
 
-      // don't update if the query hasn't changed
       if (isValidUpdate) {
-        this.query = query;
-        _.each(this.datasets, updateDataset);
+          this.query = query;
+          this.currentTerm = currentTerm;
+          _.each(this.datasets, updateDataset);
+      } else if (currentTerm.value != this.currentTerm.value || force) {
+          this.currentTerm = currentTerm;
+          _.each(this.datasets, updateDataset);
       }
-
       return isValidUpdate;
-
-      function updateDataset(dataset) { dataset.update(query); }
-    },
+      function updateDataset(dataset) {
+          dataset.update(query);
+      }
+      function getCurrentTerm($input) {
+          var terms = $input.typeahead('val').split(' : ');
+          var currentTerm = { value: terms[terms.length - 1], idx: terms.length - 1 };
+          var charCounter = 0;
+          _.each(terms, function(term, idx) {
+              charCounter += term.length;
+              if (charCounter >= $input[0].selectionStart) {
+                  currentTerm = { value: term, idx: idx };
+                  return false;
+              }
+          });
+          return currentTerm;
+      }
+  },
 
     empty: function empty() {
       _.each(this.datasets, clearDataset);
