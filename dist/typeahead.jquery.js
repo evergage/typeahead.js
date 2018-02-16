@@ -1,7 +1,7 @@
 /*!
  * typeahead.js 0.11.1
  * https://github.com/twitter/typeahead.js
- * Copyright 2013-2015 Twitter, Inc. and other contributors; Licensed MIT
+ * Copyright 2013-2018 Twitter, Inc. and other contributors; Licensed MIT
  */
 
 (function(root, factory) {
@@ -9,10 +9,10 @@
         define("typeahead.js", [ "jquery" ], function(a0) {
             return factory(a0);
         });
-    } else if (typeof exports === "object") {
+    } else if (typeof module === "object" && module.exports) {
         module.exports = factory(require("jquery"));
     } else {
-        factory(jQuery);
+        factory(root["jQuery"]);
     }
 })(this, function($) {
     var _ = function() {
@@ -465,8 +465,17 @@
                 this.trigger("blurred");
             },
             _onFocus: function onFocus() {
+                var that = this;
                 this.queryWhenFocused = this.query;
-                this.trigger("focused");
+                setTimeout(function() {
+                    that.trigger("focused");
+                });
+            },
+            _onMouseup: function onMouseup() {
+                var that = this;
+                setTimeout(function() {
+                    that.trigger("mouseuped");
+                });
             },
             _onKeydown: function onKeydown($e) {
                 var keyName = specialKeyCodeMap[$e.which || $e.keyCode];
@@ -474,6 +483,10 @@
                 if (keyName && this._shouldTrigger(keyName, $e)) {
                     this.trigger(keyName + "Keyed", $e);
                 }
+            },
+            _onKeyup: function onKeydown($e) {
+                var keyName = specialKeyCodeMap[$e.which || $e.keyCode];
+                this.trigger(keyName + "KeyedUp", $e);
             },
             _onInput: function onInput() {
                 this._setQuery(this.getInputValue());
@@ -525,16 +538,18 @@
                 }
             },
             bind: function() {
-                var that = this, onBlur, onFocus, onKeydown, onInput;
+                var that = this, onBlur, onFocus, onMouseup, onKeydown, onKeyup, onInput;
                 onBlur = _.bind(this._onBlur, this);
                 onFocus = _.bind(this._onFocus, this);
+                onMouseup = _.bind(this._onMouseup, this);
                 onKeydown = _.bind(this._onKeydown, this);
+                onKeyup = _.bind(this._onKeyup, this);
                 onInput = _.bind(this._onInput, this);
-                this.$input.on("blur.tt", onBlur).on("focus.tt", onFocus).on("keydown.tt", onKeydown);
+                this.$input.on("blur.tt", onBlur).on("focus.tt", onFocus).on("mouseup.tt", onMouseup).on("keydown.tt", onKeydown).on("keyup.tt", onKeyup);
                 if (!_.isMsie() || _.isMsie() > 9) {
                     this.$input.on("input.tt", onInput);
                 } else {
-                    this.$input.on("keydown.tt keypress.tt cut.tt paste.tt", function($e) {
+                    this.$input.on("keydown.tt keyup.tt keypress.tt cut.tt paste.tt", function($e) {
                         if (specialKeyCodeMap[$e.which || $e.keyCode]) {
                             return;
                         }
@@ -666,6 +681,7 @@
             }
             www.mixin(this);
             this.highlight = !!o.highlight;
+            this.highlightParser = o.highlightParser;
             this.name = o.name || nameGenerator();
             this.limit = o.limit || 5;
             this.displayFn = getDisplayFn(o.display || o.displayKey);
@@ -755,7 +771,7 @@
                 this.highlight && highlight({
                     className: this.classes.highlight,
                     node: fragment,
-                    pattern: query
+                    pattern: typeof that.highlightParser === "function" ? that.highlightParser(query) : query
                 });
                 return $(fragment);
             },
@@ -958,15 +974,40 @@
                 var $selectable = this._getSelectables().first();
                 return $selectable.length ? $selectable : null;
             },
-            update: function update(query) {
+            update: function update(query, $input, force) {
+                var currentTerm = getCurrentTerm($input);
+                this.currentTerm = this.currentTerm || {};
                 var isValidUpdate = query !== this.query;
                 if (isValidUpdate) {
                     this.query = query;
+                    this.currentTerm = currentTerm;
+                    _.each(this.datasets, updateDataset);
+                } else if (currentTerm.value != this.currentTerm.value || force) {
+                    this.currentTerm = currentTerm;
                     _.each(this.datasets, updateDataset);
                 }
                 return isValidUpdate;
                 function updateDataset(dataset) {
                     dataset.update(query);
+                }
+                function getCurrentTerm($input) {
+                    var terms = $input.typeahead("val").split(" : ");
+                    var currentTerm = {
+                        value: terms[terms.length - 1],
+                        idx: terms.length - 1
+                    };
+                    var charCounter = 0;
+                    _.each(terms, function(term, idx) {
+                        charCounter += term.length;
+                        if (charCounter >= $input[0].selectionStart) {
+                            currentTerm = {
+                                value: term,
+                                idx: idx
+                            };
+                            return false;
+                        }
+                    });
+                    return currentTerm;
                 }
             },
             empty: function empty() {
@@ -1035,7 +1076,7 @@
     var Typeahead = function() {
         "use strict";
         function Typeahead(o, www) {
-            var onFocused, onBlurred, onEnterKeyed, onTabKeyed, onEscKeyed, onUpKeyed, onDownKeyed, onLeftKeyed, onRightKeyed, onQueryChanged, onWhitespaceChanged;
+            var onFocused, onMouseuped, onBlurred, onEnterKeyed, onTabKeyed, onEscKeyed, onUpKeyed, onDownKeyed, onLeftKeyed, onRightKeyed, onLeftKeyedUp, onRightKeyedUp, onQueryChanged, onWhitespaceChanged;
             o = o || {};
             if (!o.input) {
                 $.error("missing input");
@@ -1058,6 +1099,7 @@
             this._hacks();
             this.menu.bind().onSync("selectableClicked", this._onSelectableClicked, this).onSync("asyncRequested", this._onAsyncRequested, this).onSync("asyncCanceled", this._onAsyncCanceled, this).onSync("asyncReceived", this._onAsyncReceived, this).onSync("datasetRendered", this._onDatasetRendered, this).onSync("datasetCleared", this._onDatasetCleared, this);
             onFocused = c(this, "activate", "open", "_onFocused");
+            onMouseuped = c(this, "isActive", "isOpen", "_onMouseuped");
             onBlurred = c(this, "deactivate", "_onBlurred");
             onEnterKeyed = c(this, "isActive", "isOpen", "_onEnterKeyed");
             onTabKeyed = c(this, "isActive", "isOpen", "_onTabKeyed");
@@ -1066,9 +1108,11 @@
             onDownKeyed = c(this, "isActive", "open", "_onDownKeyed");
             onLeftKeyed = c(this, "isActive", "isOpen", "_onLeftKeyed");
             onRightKeyed = c(this, "isActive", "isOpen", "_onRightKeyed");
+            onLeftKeyedUp = c(this, "isActive", "isOpen", "_onLeftKeyedUp");
+            onRightKeyedUp = c(this, "isActive", "isOpen", "_onRightKeyedUp");
             onQueryChanged = c(this, "_openIfActive", "_onQueryChanged");
             onWhitespaceChanged = c(this, "_openIfActive", "_onWhitespaceChanged");
-            this.input.bind().onSync("focused", onFocused, this).onSync("blurred", onBlurred, this).onSync("enterKeyed", onEnterKeyed, this).onSync("tabKeyed", onTabKeyed, this).onSync("escKeyed", onEscKeyed, this).onSync("upKeyed", onUpKeyed, this).onSync("downKeyed", onDownKeyed, this).onSync("leftKeyed", onLeftKeyed, this).onSync("rightKeyed", onRightKeyed, this).onSync("queryChanged", onQueryChanged, this).onSync("whitespaceChanged", onWhitespaceChanged, this).onSync("langDirChanged", this._onLangDirChanged, this);
+            this.input.bind().onSync("focused", onFocused, this).onSync("mouseuped", onMouseuped, this).onSync("blurred", onBlurred, this).onSync("enterKeyed", onEnterKeyed, this).onSync("tabKeyed", onTabKeyed, this).onSync("escKeyed", onEscKeyed, this).onSync("upKeyed", onUpKeyed, this).onSync("downKeyed", onDownKeyed, this).onSync("leftKeyed", onLeftKeyed, this).onSync("rightKeyed", onRightKeyed, this).onSync("leftKeyedUp", onLeftKeyedUp, this).onSync("rightKeyedUp", onRightKeyedUp, this).onSync("queryChanged", onQueryChanged, this).onSync("whitespaceChanged", onWhitespaceChanged, this).onSync("langDirChanged", this._onLangDirChanged, this);
         }
         _.mixin(Typeahead.prototype, {
             _hacks: function hacks() {
@@ -1112,7 +1156,10 @@
                 this.eventBus.trigger("asyncreceive", query, dataset);
             },
             _onFocused: function onFocused() {
-                this._minLengthMet() && this.menu.update(this.input.getQuery());
+                this._minLengthMet() && this.menu.update(this.input.getQuery(), this.input.$input);
+            },
+            _onMouseuped: function onMouseuped() {
+                this._minLengthMet() && this.menu.update(this.input.getQuery(), this.input.$input);
             },
             _onBlurred: function onBlurred() {
                 if (this.input.hasQueryChangedSinceLastFocus()) {
@@ -1152,8 +1199,14 @@
                     this.autocomplete(this.menu.getTopSelectable());
                 }
             },
+            _onLeftKeyedUp: function onLeftKeyedUp() {
+                this.menu.update(this.input.query, this.input.$input);
+            },
+            _onRightKeyedUp: function onRightKeyedUp() {
+                this.menu.update(this.input.query, this.input.$input);
+            },
             _onQueryChanged: function onQueryChanged(e, query) {
-                this._minLengthMet(query) ? this.menu.update(query) : this.menu.empty();
+                this._minLengthMet(query) ? this.menu.update(query, this.input.$input) : this.menu.empty();
             },
             _onWhitespaceChanged: function onWhitespaceChanged() {
                 this._updateHint();
@@ -1252,7 +1305,15 @@
                 if (data && !this.eventBus.before("select", data.obj)) {
                     this.input.setQuery(data.val, true);
                     this.eventBus.trigger("select", data.obj);
-                    this.close();
+                    var terms = this.input.query.split(" : ");
+                    var that = this;
+                    if (terms.length === 2 && terms[1] === "") {
+                        setTimeout(function() {
+                            that.menu.update(that.input.query, that.input.$input, true);
+                        });
+                    } else {
+                        this.close();
+                    }
                     return true;
                 }
                 return false;
@@ -1275,7 +1336,7 @@
                 $candidate = this.menu.selectableRelativeToCursor(delta);
                 data = this.menu.getSelectableData($candidate);
                 payload = data ? data.obj : null;
-                cancelMove = this._minLengthMet() && this.menu.update(query);
+                cancelMove = this._minLengthMet() && this.menu.update(query, this.input.$input);
                 if (!cancelMove && !this.eventBus.before("cursorchange", payload)) {
                     this.menu.setCursor($candidate);
                     if (data) {
