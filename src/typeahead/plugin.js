@@ -63,7 +63,11 @@
           .wrap($wrapper)
           .parent()
           .prepend(defaultHint ? $hint : null)
+          .append('<span class="' + www.classes.faux +'" style="visibility: hidden; position: absolute; top: -999999px; left: -999999px;"></span>');
+
+          $('body')
           .append(defaultMenu ? $menu : null);
+          
         }
 
         MenuConstructor = defaultMenu ? DefaultMenu : Menu;
@@ -257,10 +261,11 @@
   }
 
   function revert($input) {
-    var www, $wrapper;
+    var www, $wrapper, $menu;
 
     www = $input.data(keys.www);
     $wrapper = $input.parent().filter(www.selectors.wrapper);
+    $menu = $("." + www.classes.menu.replace(" ", "."));
 
     // need to remove attrs that weren't previously defined and
     // revert attrs that originally had a value
@@ -277,6 +282,10 @@
     if ($wrapper.length) {
       $input.detach().insertAfter($wrapper);
       $wrapper.remove();
+    }
+
+    if ($menu.length) {
+      $menu.remove();
     }
   }
 

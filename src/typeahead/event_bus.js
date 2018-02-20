@@ -42,11 +42,13 @@ var EventBus = (function() {
 
     _trigger: function(type, args) {
       var $e;
+      var params = []
 
       $e = $.Event(namespace + type);
-      (args = args || []).unshift($e);
+      params.push($e);
+      params.push(args || []);
 
-      this.$el.trigger.apply(this.$el, args);
+      this.$el.trigger.apply(this.$el, params);
 
       return $e;
     },

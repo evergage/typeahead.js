@@ -148,6 +148,42 @@
             stringify: function(val) {
                 return _.isString(val) ? val : JSON.stringify(val);
             },
+            getCurrentTerm: function($input) {
+                var terms = $input.typeahead("val").split(" : ");
+                var currentTerm = {
+                    value: terms[terms.length - 1],
+                    idx: terms.length - 1,
+                    charIdx: $input.typeahead("val").length - terms[terms.length - 1].length
+                };
+                var charCounter = 0;
+                _.each(terms, function(term, idx) {
+                    charCounter += term.length;
+                    if (idx != 0) {
+                        charCounter += 3;
+                    }
+                    if (charCounter >= $input[0].selectionStart) {
+                        currentTerm = {
+                            value: term,
+                            idx: idx,
+                            charIdx: charCounter - term.length
+                        };
+                        return false;
+                    }
+                });
+                return currentTerm;
+            },
+            getMenuLeft: function($input, $faux) {
+                var off = _.getCurrentTerm($input).charIdx;
+                $faux.text($input.val().substring(0, off).replace(/\s/g, " "));
+                return $faux.outerWidth();
+            },
+            setMenuPlacement: function(selectors) {
+                var $input = $(selectors.input);
+                var $menu = $(selectors.menu);
+                var $faux = $(selectors.faux);
+                $menu.css("top", $input.offset().top + $input.height());
+                $menu.css("left", _.getMenuLeft($input, $faux) + $input.offset().left);
+            },
             noop: function() {}
         };
     }();
@@ -164,7 +200,8 @@
             empty: "tt-empty",
             open: "tt-open",
             cursor: "tt-cursor",
-            highlight: "tt-highlight"
+            highlight: "tt-highlight",
+            faux: "tt-faux"
         };
         return build;
         function build(o) {
@@ -195,7 +232,7 @@
         function buildSelectors(classes) {
             var selectors = {};
             _.each(classes, function(v, k) {
-                selectors[k] = "." + v;
+                selectors[k] = "." + v.replace(" ", ".");
             });
             return selectors;
         }
@@ -265,9 +302,11 @@
         _.mixin(EventBus.prototype, {
             _trigger: function(type, args) {
                 var $e;
+                var params = [];
                 $e = $.Event(namespace + type);
-                (args = args || []).unshift($e);
-                this.$el.trigger.apply(this.$el, args);
+                params.push($e);
+                params.push(args || []);
+                this.$el.trigger.apply(this.$el, params);
                 return $e;
             },
             before: function(type) {
@@ -975,39 +1014,22 @@
                 return $selectable.length ? $selectable : null;
             },
             update: function update(query, $input, force) {
-                var currentTerm = getCurrentTerm($input);
+                var currentTerm = _.getCurrentTerm($input);
                 this.currentTerm = this.currentTerm || {};
                 var isValidUpdate = query !== this.query;
                 if (isValidUpdate) {
                     this.query = query;
                     this.currentTerm = currentTerm;
                     _.each(this.datasets, updateDataset);
+                    _.setMenuPlacement(this.selectors);
                 } else if (currentTerm.value != this.currentTerm.value || force) {
                     this.currentTerm = currentTerm;
                     _.each(this.datasets, updateDataset);
+                    _.setMenuPlacement(this.selectors);
                 }
                 return isValidUpdate;
                 function updateDataset(dataset) {
                     dataset.update(query);
-                }
-                function getCurrentTerm($input) {
-                    var terms = $input.typeahead("val").split(" : ");
-                    var currentTerm = {
-                        value: terms[terms.length - 1],
-                        idx: terms.length - 1
-                    };
-                    var charCounter = 0;
-                    _.each(terms, function(term, idx) {
-                        charCounter += term.length;
-                        if (charCounter >= $input[0].selectionStart) {
-                            currentTerm = {
-                                value: term,
-                                idx: idx
-                            };
-                            return false;
-                        }
-                    });
-                    return currentTerm;
                 }
             },
             empty: function empty() {
@@ -1169,7 +1191,7 @@
             _onEnterKeyed: function onEnterKeyed(type, $e) {
                 var $selectable;
                 if ($selectable = this.menu.getActiveSelectable()) {
-                    this.select($selectable) && $e.preventDefault();
+                    this.select($selectable, true) && $e.preventDefault();
                 }
             },
             _onTabKeyed: function onTabKeyed(type, $e) {
@@ -1281,6 +1303,7 @@
                 if (!this.isOpen() && !this.eventBus.before("open")) {
                     this.menu.open();
                     this._updateHint();
+                    _.setMenuPlacement(this.selectors);
                     this.eventBus.trigger("open");
                 }
                 return this.isOpen();
@@ -1300,11 +1323,11 @@
             getVal: function getVal() {
                 return this.input.getQuery();
             },
-            select: function select($selectable) {
+            select: function select($selectable, isEnterButton) {
                 var data = this.menu.getSelectableData($selectable);
                 if (data && !this.eventBus.before("select", data.obj)) {
                     this.input.setQuery(data.val, true);
-                    this.eventBus.trigger("select", data.obj);
+                    this.eventBus.trigger("select", data.obj, isEnterButton);
                     var terms = this.input.query.split(" : ");
                     var that = this;
                     if (terms.length === 2 && terms[1] === "") {
@@ -1400,7 +1423,8 @@
                     if (defaultHint || defaultMenu) {
                         $wrapper.css(www.css.wrapper);
                         $input.css(defaultHint ? www.css.input : www.css.inputWithNoHint);
-                        $input.wrap($wrapper).parent().prepend(defaultHint ? $hint : null).append(defaultMenu ? $menu : null);
+                        $input.wrap($wrapper).parent().prepend(defaultHint ? $hint : null).append('<span class="' + www.classes.faux + '" style="visibility: hidden; position: absolute; top: -999999px; left: -999999px;"></span>');
+                        $("body").append(defaultMenu ? $menu : null);
                     }
                     MenuConstructor = defaultMenu ? DefaultMenu : Menu;
                     eventBus = new EventBus({
@@ -1577,9 +1601,10 @@
             };
         }
         function revert($input) {
-            var www, $wrapper;
+            var www, $wrapper, $menu;
             www = $input.data(keys.www);
             $wrapper = $input.parent().filter(www.selectors.wrapper);
+            $menu = $("." + www.classes.menu.replace(" ", "."));
             _.each($input.data(keys.attrs), function(val, key) {
                 _.isUndefined(val) ? $input.removeAttr(key) : $input.attr(key, val);
             });
@@ -1587,6 +1612,9 @@
             if ($wrapper.length) {
                 $input.detach().insertAfter($wrapper);
                 $wrapper.remove();
+            }
+            if ($menu.length) {
+                $menu.remove();
             }
         }
         function $elOrNull(obj) {

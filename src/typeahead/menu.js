@@ -179,7 +179,7 @@ var Menu = (function() {
     },
 
     update: function update(query, $input, force) {
-      var currentTerm = getCurrentTerm($input);
+      var currentTerm = _.getCurrentTerm($input);
       this.currentTerm = this.currentTerm || {};
       var isValidUpdate = query !== this.query;
 
@@ -187,26 +187,15 @@ var Menu = (function() {
           this.query = query;
           this.currentTerm = currentTerm;
           _.each(this.datasets, updateDataset);
+          _.setMenuPlacement(this.selectors);
       } else if (currentTerm.value != this.currentTerm.value || force) {
           this.currentTerm = currentTerm;
           _.each(this.datasets, updateDataset);
+          _.setMenuPlacement(this.selectors);
       }
       return isValidUpdate;
       function updateDataset(dataset) {
           dataset.update(query);
-      }
-      function getCurrentTerm($input) {
-          var terms = $input.typeahead('val').split(' : ');
-          var currentTerm = { value: terms[terms.length - 1], idx: terms.length - 1 };
-          var charCounter = 0;
-          _.each(terms, function(term, idx) {
-              charCounter += term.length;
-              if (charCounter >= $input[0].selectionStart) {
-                  currentTerm = { value: term, idx: idx };
-                  return false;
-              }
-          });
-          return currentTerm;
       }
   },
 

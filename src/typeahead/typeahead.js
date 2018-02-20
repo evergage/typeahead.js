@@ -173,7 +173,7 @@ var Typeahead = (function() {
       var $selectable;
 
       if ($selectable = this.menu.getActiveSelectable()) {
-        this.select($selectable) && $e.preventDefault();
+        this.select($selectable, true) && $e.preventDefault();
       }
     },
 
@@ -338,6 +338,7 @@ var Typeahead = (function() {
       if (!this.isOpen() && !this.eventBus.before('open')) {
         this.menu.open();
         this._updateHint();
+        _.setMenuPlacement(this.selectors);
         this.eventBus.trigger('open');
       }
 
@@ -363,13 +364,13 @@ var Typeahead = (function() {
       return this.input.getQuery();
     },
 
-    select: function select($selectable) {
+    select: function select($selectable, isEnterButton) {
       var data = this.menu.getSelectableData($selectable);
 
       if (data && !this.eventBus.before('select', data.obj)) {
         this.input.setQuery(data.val, true);
 
-        this.eventBus.trigger('select', data.obj);
+        this.eventBus.trigger('select', data.obj, isEnterButton);
         var terms = this.input.query.split(' : ');
         var that = this;
         if (terms.length === 2 && terms[1] === "") {

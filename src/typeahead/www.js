@@ -18,7 +18,8 @@ var WWW = (function() {
     empty: 'tt-empty',
     open: 'tt-open',
     cursor: 'tt-cursor',
-    highlight: 'tt-highlight'
+    highlight: 'tt-highlight',
+    faux: "tt-faux"
   };
 
   return build;
@@ -53,7 +54,9 @@ var WWW = (function() {
 
   function buildSelectors(classes) {
     var selectors = {};
-    _.each(classes, function(v, k) { selectors[k] = '.' + v; });
+    _.each(classes, function(v, k) {
+      selectors[k] = '.' + v.replace(' ', '.');
+    });
 
     return selectors;
   }

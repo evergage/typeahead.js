@@ -148,6 +148,42 @@
             stringify: function(val) {
                 return _.isString(val) ? val : JSON.stringify(val);
             },
+            getCurrentTerm: function($input) {
+                var terms = $input.typeahead("val").split(" : ");
+                var currentTerm = {
+                    value: terms[terms.length - 1],
+                    idx: terms.length - 1,
+                    charIdx: $input.typeahead("val").length - terms[terms.length - 1].length
+                };
+                var charCounter = 0;
+                _.each(terms, function(term, idx) {
+                    charCounter += term.length;
+                    if (idx != 0) {
+                        charCounter += 3;
+                    }
+                    if (charCounter >= $input[0].selectionStart) {
+                        currentTerm = {
+                            value: term,
+                            idx: idx,
+                            charIdx: charCounter - term.length
+                        };
+                        return false;
+                    }
+                });
+                return currentTerm;
+            },
+            getMenuLeft: function($input, $faux) {
+                var off = _.getCurrentTerm($input).charIdx;
+                $faux.text($input.val().substring(0, off).replace(/\s/g, " "));
+                return $faux.outerWidth();
+            },
+            setMenuPlacement: function(selectors) {
+                var $input = $(selectors.input);
+                var $menu = $(selectors.menu);
+                var $faux = $(selectors.faux);
+                $menu.css("top", $input.offset().top + $input.height());
+                $menu.css("left", _.getMenuLeft($input, $faux) + $input.offset().left);
+            },
             noop: function() {}
         };
     }();
