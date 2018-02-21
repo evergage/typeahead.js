@@ -180,10 +180,16 @@ var _ = (function() {
       return currentTerm;
     },
 
-    getMenuLeft: function($input, $faux) {
+    getMenuLeft: function($menu, $input, $faux) {
       var off = _.getCurrentTerm($input).charIdx;
       $faux.text($input.val().substring(0, off).replace(/\s/g, "\u00a0"));
-      return $faux.outerWidth();
+      var left = $faux.outerWidth() + $input.offset().left;
+      var rightEdge = $("body").width();
+      var overflow = rightEdge - (left + parseInt($menu.css("minWidth")));
+      if (overflow < 0) {
+        left = left + overflow;
+      }
+      return left;
     },
 
     setMenuPlacement: function(selectors) {
@@ -191,7 +197,7 @@ var _ = (function() {
       var $menu = $(selectors.menu);
       var $faux = $(selectors.faux);
       $menu.css("top", $input.offset().top + $input.height());
-      $menu.css("left", _.getMenuLeft($input, $faux) + $input.offset().left);
+      $menu.css("left", _.getMenuLeft($menu, $input, $faux));
     },
   
     noop: function() {}
