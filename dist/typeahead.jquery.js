@@ -177,7 +177,7 @@
                 $faux.text($input.val().substring(0, off).replace(/\s/g, " "));
                 var left = $faux.outerWidth() + $input.offset().left;
                 var rightEdge = $("body").width();
-                var overflow = rightEdge - (left + parseInt($menu.css("minWidth")));
+                var overflow = rightEdge - (left + $menu.outerWidth());
                 if (overflow < 0) {
                     left = left + overflow;
                 }
